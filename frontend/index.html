@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Code Repository System</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Code Repository System</h1>
+        
+        <div class="branch-form">
+            <h2>Create Branch</h2>
+            <form id="branchForm">
+                <input type="text" id="branchName" placeholder="Branch name" required>
+                <button type="submit">Create Branch</button>
+            </form>
+        </div>
+
+        <div class="commit-form">
+            <h2>New Commit</h2>
+            <form id="commitForm">
+                <input type="text" id="branchId" placeholder="Branch ID" required>
+                <input type="text" id="filename" placeholder="File name" required>
+                <textarea id="code" placeholder="Your code here" required></textarea>
+                <input type="text" id="message" placeholder="Commit message" required>
+                <button type="submit">Save Commit</button>
+            </form>
+        </div>
+
+        <div class="commits-list">
+            <h2>Recent Commits</h2>
+            <div id="commitsList"></div>
+        </div>
+    </div>
+
+    <!-- Диалог подтверждения удаления -->
+    <div class="overlay" id="overlay"></div>
+    <div class="confirmation-dialog" id="deleteDialog">
+        <h3>Confirm Deletion</h3>
+        <p>Are you sure you want to delete this commit?</p>
+        <div class="dialog-buttons">
+            <button onclick="cancelDelete()">Cancel</button>
+            <button class="delete-btn" onclick="confirmDelete()">Delete</button>
+        </div>
+    </div>
+
+    <script>
+        let commitToDelete = null;
+
+        document.getElementById('branchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('branchName').value,
+            };
+
+            const response = await fetch('http://localhost:5000/branches', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                document.getElementById('branchForm').reset();
+                alert('Branch created successfully!');
+            }
+        });
+
+        document.getElementById('commitForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const data = {
+                branch_id: parseInt(document.getElementById('branchId').value),
+                filename: document.getElementById('filename').value,
+                code: document.getElementById('code').value,
+                message: document.getElementById('message').value,
+            };
+
+            const response = await fetch('http://localhost:5000/commit', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+
+            if (response.ok) {
+                loadCommits(data.branch_id);
+                document.getElementById('commitForm').reset();
+            }
+        });
+
+        async function loadCommits(branchId) {
+            const response = await fetch(`http://localhost:5000/commits?branch_id=${branchId}`);
+            const commits = await response.json();
+            
+            const commitsList = document.getElementById('commitsList');
+            commitsList.innerHTML = commits.map(commit => `
+                <div class="commit">
+                    <div class="commit-header">
+                        <h3>${commit.filename}</h3>
+                        <button class="delete-btn" onclick="showDeleteDialog(${commit.id})">Delete</button>
+                    </div>
+                    <pre>${commit.code}</pre>
+                    <p class="message">${commit.message}</p>
+                    <p class="timestamp">${commit.created_at}</p>
+                </div>
+            `).join('');
+        }
+
+        function showDeleteDialog(commitId) {
+            commitToDelete = commitId;
+            document.getElementById('overlay').classList.add('show');
+            document.getElementById('deleteDialog').classList.add('show');
+        }
+
+        function cancelDelete() {
+            commitToDelete = null;
+            document.getElementById('overlay').classList.remove('show');
+            document.getElementById('deleteDialog').classList.remove('show');
+        }
+
+        async function confirmDelete() {
+            if (commitToDelete) {
+                const response = await fetch(`http://localhost:5000/commit/${commitToDelete}`, {
+                    method: 'DELETE',
+                });
+
+                if (response.ok) {
+                    loadCommits(document.getElementById('branchId').value);
+                }
+            }
+            cancelDelete();
+        }
+
+        // Загрузка коммитов при загрузке страницы
+        window.addEventListener('load', () => {
+            loadCommits();
+        });
+    </script>
+</body>
+</html>
